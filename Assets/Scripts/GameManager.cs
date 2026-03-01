@@ -37,49 +37,64 @@ public class GameManager : MonoBehaviour
     }
 
     void CreateBoard()
+{
+    int rows = 4;       // e.g., 4
+    int columns = 4;    // e.g., 4
+    float spacing = 1.5f; // e.g., 1.5f
+
+    // Compute offsets to center the grid at (0,0)
+    float offsetX = (columns - 1) * spacing / 2f;
+    float offsetY = (rows - 1) * spacing / 2f;
+
+    // --- Create Dots ---
+    for (int r = 0; r < rows; r++)
     {
-        // Create dots
-        for (int r = 0; r < 4; r++)
+        for (int c = 0; c < columns; c++)
         {
-            for (int c = 0; c < 4; c++)
-            {
-                Vector3 pos = new Vector3(c * spacing, -r * spacing, 0);
-                Instantiate(dotPrefab, pos, Quaternion.identity, dotsParent);
-            }
-        }
-
-        // Create horizontal edges
-        for (int r = 0; r < 4; r++)
-        {
-            for (int c = 0; c < 3; c++)
-            {
-                Vector3 pos = new Vector3(c * spacing + spacing / 2f, -r * spacing, 0);
-                GameObject edge = Instantiate(horizontalEdgePrefab, pos, Quaternion.identity, horizontalParent);
-                edge.GetComponent<Edge>().Initialize(r, c, true);
-            }
-        }
-
-        // Create vertical edges
-        for (int r = 0; r < 3; r++)
-        {
-            for (int c = 0; c < 4; c++)
-            {
-                Vector3 pos = new Vector3(c * spacing, -r * spacing - spacing / 2f, 0);
-                GameObject edge = Instantiate(verticalEdgePrefab, pos, Quaternion.identity, verticalParent);
-                edge.GetComponent<Edge>().Initialize(r, c, false);
-            }
-        }
-
-        // Create box visuals
-        for (int r = 0; r < 3; r++)
-        {
-            for (int c = 0; c < 3; c++)
-            {
-                Vector3 pos = new Vector3(c * spacing + spacing / 2f, -r * spacing - spacing / 2f, 1);
-                Instantiate(boxPrefab, pos, Quaternion.identity, boxesParent);
-            }
+            Vector3 dotPos = new Vector3(c * spacing - offsetX, -r * spacing + offsetY, -0.1f); // dots slightly in front
+            GameObject dot = Instantiate(dotPrefab, dotPos, Quaternion.identity, dotsParent);
+            dot.GetComponent<SpriteRenderer>().sortingOrder = 1; // ensure dots are on top
         }
     }
+
+    // --- Create Horizontal Edges ---
+    for (int r = 0; r < rows; r++)
+    {
+        for (int c = 0; c < columns - 1; c++)
+        {
+            Vector3 edgePos = new Vector3(c * spacing + spacing / 2f - offsetX, -r * spacing + offsetY, 0);
+            GameObject edge = Instantiate(horizontalEdgePrefab, edgePos, Quaternion.identity, horizontalParent);
+            edge.GetComponent<SpriteRenderer>().sortingOrder = 0;
+            Edge edgeScript = edge.GetComponent<Edge>();
+            edgeScript.Initialize(r, c, true);
+        }
+    }
+
+    // --- Create Vertical Edges ---
+    for (int r = 0; r < rows - 1; r++)
+    {
+        for (int c = 0; c < columns; c++)
+        {
+            Vector3 edgePos = new Vector3(c * spacing - offsetX, -r * spacing - spacing / 2f + offsetY, 0);
+            GameObject edge = Instantiate(verticalEdgePrefab, edgePos, Quaternion.identity, verticalParent);
+            edge.GetComponent<SpriteRenderer>().sortingOrder = 0;
+            Edge edgeScript = edge.GetComponent<Edge>();
+            edgeScript.Initialize(r, c, false);
+        }
+    }
+
+    // --- Create Boxes ---
+    for (int r = 0; r < rows - 1; r++)
+    {
+        for (int c = 0; c < columns - 1; c++)
+        {
+            Vector3 boxPos = new Vector3(c * spacing + spacing / 2f - offsetX, -r * spacing - spacing / 2f + offsetY, 1);
+            GameObject box = Instantiate(boxPrefab, boxPos, Quaternion.identity, boxesParent);
+            box.GetComponent<SpriteRenderer>().color = Color.clear; // initially invisible
+            box.GetComponent<SpriteRenderer>().sortingOrder = 0;
+        }
+    }
+}
 
     public void TryPlaceEdge(Edge edge)
 {
