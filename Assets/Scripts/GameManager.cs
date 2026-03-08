@@ -1,4 +1,3 @@
-// GameManager.cs
 using UnityEngine;
 using Unity.Netcode;
 using System.Collections.Generic;
@@ -23,10 +22,14 @@ public class GameManager : NetworkBehaviour
 
     public int[,] horizontalEdges = new int[4, 3];
     public int[,] verticalEdges = new int[3, 4];
-    public int[,] boxes = new int[3, 3]; // Track which player completed each box (0 = uncompleted)
+    public int[,] boxes = new int[3, 3]; // 0 = unclaimed, 1 or 2 = player
 
     public NetworkVariable<int> CurrentPlayer = new NetworkVariable<int>(1);
-    
+
+    // --- Networked player scores ---
+    public NetworkVariable<int> Player1Score = new NetworkVariable<int>(0);
+    public NetworkVariable<int> Player2Score = new NetworkVariable<int>(0);
+
     private Dictionary<ulong, int> clientToPlayerMap = new Dictionary<ulong, int>();
     private Dictionary<string, Edge> edgeCache = new Dictionary<string, Edge>();
 
@@ -55,6 +58,7 @@ public class GameManager : NetworkBehaviour
         clientToPlayerMap[clientId] = playerNumber;
     }
 
+    // --- Create the full board ---
     private void CreateBoard()
     {
         int rows = 4;
@@ -80,7 +84,7 @@ public class GameManager : NetworkBehaviour
         {
             for (int c = 0; c < columns - 1; c++)
             {
-                Vector3 pos = new Vector3(c * spacing + spacing/2 - offsetX, -r * spacing + offsetY, 0);
+                Vector3 pos = new Vector3(c * spacing + spacing / 2 - offsetX, -r * spacing + offsetY, 0);
                 var edge = Instantiate(horizontalEdgePrefab, pos, Quaternion.identity, horizontalParent);
                 edge.GetComponent<SpriteRenderer>().sortingOrder = 0;
                 var edgeScript = edge.GetComponent<Edge>();
@@ -95,7 +99,7 @@ public class GameManager : NetworkBehaviour
         {
             for (int c = 0; c < columns; c++)
             {
-                Vector3 pos = new Vector3(c * spacing - offsetX, -r * spacing - spacing/2 + offsetY, 0);
+                Vector3 pos = new Vector3(c * spacing - offsetX, -r * spacing - spacing / 2 + offsetY, 0);
                 var edge = Instantiate(verticalEdgePrefab, pos, Quaternion.identity, verticalParent);
                 edge.GetComponent<SpriteRenderer>().sortingOrder = 0;
                 var edgeScript = edge.GetComponent<Edge>();
@@ -110,7 +114,7 @@ public class GameManager : NetworkBehaviour
         {
             for (int c = 0; c < columns - 1; c++)
             {
-                Vector3 pos = new Vector3(c * spacing + spacing/2 - offsetX, -r * spacing - spacing/2 + offsetY, 1);
+                Vector3 pos = new Vector3(c * spacing + spacing / 2 - offsetX, -r * spacing - spacing / 2 + offsetY, 1);
                 var box = Instantiate(boxPrefab, pos, Quaternion.identity, boxesParent);
                 box.GetComponent<SpriteRenderer>().color = Color.clear;
                 box.GetComponent<SpriteRenderer>().sortingOrder = 0;
@@ -119,22 +123,16 @@ public class GameManager : NetworkBehaviour
         }
     }
 
+    // --- Handle client requests to place edges ---
     [ServerRpc(RequireOwnership = false)]
     public void RequestEdgePlacementServerRpc(int row, int col, bool isHorizontal, ulong clientId)
     {
         int player = CurrentPlayer.Value;
 
-        if (!clientToPlayerMap.ContainsKey(clientId))
-        {
-            return;
-        }
+        if (!clientToPlayerMap.ContainsKey(clientId)) return;
 
         int requestingPlayer = clientToPlayerMap[clientId];
-
-        if (requestingPlayer != player)
-        {
-            return;
-        }
+        if (requestingPlayer != player) return;
 
         if (isHorizontal)
         {
@@ -153,90 +151,83 @@ public class GameManager : NetworkBehaviour
             e.placedBy.Value = player;
         }
 
-        // Check if any boxes were completed by this move
+        // Check for completed boxes
         int boxesCompleted = CheckForCompletedBoxes(row, col, isHorizontal, player);
 
-        // Only switch turn if no boxes were completed
+        // Switch turn only if no boxes completed
         if (boxesCompleted == 0)
         {
             CurrentPlayer.Value = player == 1 ? 2 : 1;
         }
     }
 
+    // --- Check completed boxes and increment scores ---
     private int CheckForCompletedBoxes(int row, int col, bool isHorizontal, int player)
-    {
-        int boxesCompleted = 0;
+{
+    int boxesCompleted = 0;
 
-        if (isHorizontal)
+    if (isHorizontal)
+    {
+        if (row > 0 && IsBoxComplete(row - 1, col, player))
         {
-            // Horizontal edge can complete boxes above (row-1) and below (row)
-            // Check box above
-            if (row > 0)
-            {
-                if (IsBoxComplete(row - 1, col, player))
-                {
-                    boxes[row - 1, col] = player;
-                    boxesCompleted++;
-                }
-            }
-            // Check box below
-            if (row < 3)
-            {
-                if (IsBoxComplete(row, col, player))
-                {
-                    boxes[row, col] = player;
-                    boxesCompleted++;
-                }
-            }
+            boxes[row - 1, col] = player;
+            boxesCompleted++;
+            Debug.Log($"[GM] Player {player} completed box at {row-1},{col}");
+        }
+        if (row < 3 && IsBoxComplete(row, col, player))
+        {
+            boxes[row, col] = player;
+            boxesCompleted++;
+            Debug.Log($"[GM] Player {player} completed box at {row},{col}");
+        }
+    }
+    else
+    {
+        if (col > 0 && IsBoxComplete(row, col - 1, player))
+        {
+            boxes[row, col - 1] = player;
+            boxesCompleted++;
+            Debug.Log($"[GM] Player {player} completed box at {row},{col-1}");
+        }
+        if (col < 3 && IsBoxComplete(row, col, player))
+        {
+            boxes[row, col] = player;
+            boxesCompleted++;
+            Debug.Log($"[GM] Player {player} completed box at {row},{col}");
+        }
+    }
+
+    // Update networked scores
+    if (boxesCompleted > 0)
+    {
+        if (player == 1)
+        {
+            Player1Score.Value += boxesCompleted;
+            // Debug.Log($"[GM] Player1Score updated: {Player1Score.Value}");
         }
         else
         {
-            // Vertical edge can complete boxes left (col-1) and right (col)
-            // Check box to the left
-            if (col > 0)
-            {
-                if (IsBoxComplete(row, col - 1, player))
-                {
-                    boxes[row, col - 1] = player;
-                    boxesCompleted++;
-                }
-            }
-            // Check box to the right
-            if (col < 3)
-            {
-                if (IsBoxComplete(row, col, player))
-                {
-                    boxes[row, col] = player;
-                    boxesCompleted++;
-                }
-            }
+            Player2Score.Value += boxesCompleted;
+            // Debug.Log($"[GM] Player2Score updated: {Player2Score.Value}");
         }
-
-        return boxesCompleted;
     }
 
+    return boxesCompleted;
+}
+    // --- Returns true if a box is completed by a player ---
     private bool IsBoxComplete(int boxRow, int boxCol, int player)
     {
-        // A box is complete if all 4 edges are placed by the SAME player
-        // Top horizontal edge
         if (horizontalEdges[boxRow, boxCol] != player) return false;
-        // Bottom horizontal edge
         if (horizontalEdges[boxRow + 1, boxCol] != player) return false;
-        // Left vertical edge
         if (verticalEdges[boxRow, boxCol] != player) return false;
-        // Right vertical edge
         if (verticalEdges[boxRow, boxCol + 1] != player) return false;
-
         return true;
     }
 
     private Edge FindEdge(int row, int col, bool isHorizontal)
     {
         string key = isHorizontal ? $"H_{row}_{col}" : $"V_{row}_{col}";
-        if (edgeCache.TryGetValue(key, out Edge edge))
-        {
-            return edge;
-        }
-        return null;
+        edgeCache.TryGetValue(key, out Edge edge);
+        return edge;
     }
 }
