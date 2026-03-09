@@ -10,10 +10,9 @@ EDGE SCRIPT:
 
 public class Edge : NetworkBehaviour
 {
-    /** 
-    all things relating to edges need to be network variables, so the row/column,
-    who it is placed by, etc. these things need to be tracked over the network to accurately
-    keep track of player score, and overall ensure game functionality
+    /**
+    NETWORK VARIABLES:
+    - used so every client sees the same edge position/orientation/owner
     **/
     public NetworkVariable<int> row = new NetworkVariable<int>(0);
     public NetworkVariable<int> col = new NetworkVariable<int>(0);
@@ -35,6 +34,8 @@ public class Edge : NetworkBehaviour
     {
         if (IsServer)
         {
+            // only server sets initial NetworkVariable values for this edge
+            // clients receive these values automatically after spawn
             row.Value = tempRow;
             col.Value = tempCol;
             isHorizontal.Value = tempIsHorizontal;
@@ -54,16 +55,20 @@ public class Edge : NetworkBehaviour
 
     private void Awake()
     {
+        // subscribe to placedBy changes.
+        // whenever server updates placedBy, this callback runs on each client.
         placedBy.OnValueChanged += OnPlacedByChanged;
     }
 
-    private void OnDestroy()
+    public override void OnDestroy()
     {
         placedBy.OnValueChanged -= OnPlacedByChanged;
+        base.OnDestroy();
     }
 
     private void OnPlacedByChanged(int prev, int current)
     {
+        // deals with player colors
         var sr = GetComponent<SpriteRenderer>();
         if (!sr) return;
 
@@ -83,7 +88,13 @@ public class Edge : NetworkBehaviour
         }
     }
 
-    // add an edge for corresponding player when mouse is clicked
+    /**
+    GAME FUNCTIONALITY:
+    - click happens on local client
+    - client sends a ServerRpc request to GameManager
+    - server validates turn/rules and then updates NetworkVariables
+    - those updates reflected on client
+    **/
     private void OnMouseDown()
     {
         if (clickProcessing) return;
@@ -91,6 +102,7 @@ public class Edge : NetworkBehaviour
         if (placedBy.Value != 0) return;
 
         clickProcessing = true;
+        // RequestEdgePlacementServerRpc executes on SERVER (not locally).
         GameManager.Instance.RequestEdgePlacementServerRpc(row.Value, col.Value, isHorizontal.Value, NetworkManager.Singleton.LocalClientId);
         Invoke(nameof(ResetClickProcessing), 0.1f);
     }

@@ -3,7 +3,7 @@ using UnityEngine;
 
 /**
 PLAYER DEBUG:
-used for checking if a client has joined
+- used for checking if a client has joined
 **/
 
 public class PlayerDebug : NetworkBehaviour

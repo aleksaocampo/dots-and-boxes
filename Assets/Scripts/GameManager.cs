@@ -27,13 +27,19 @@ public class GameManager : NetworkBehaviour
 
     public float spacing = 1.5f;
 
+    // these arrays only exist on the server to track game state
+    // regular arrays do not need to be synced across network
     public int[,] horizontalEdges = new int[4, 3];
     public int[,] verticalEdges = new int[3, 4];
     public int[,] boxes = new int[3, 3]; // 0 = unclaimed, 1 or 2 = player
 
+    /**
+    NETWORK VARIABLES:
+    - automatically synchronized across all clients by Netcode
+    - when the server changes value, updates are reflected to clients
+    - use OnValueChanged to subscribe and react to changes
+    **/
     public NetworkVariable<int> CurrentPlayer = new NetworkVariable<int>(1);
-
-    // player scores are networked
     public NetworkVariable<int> Player1Score = new NetworkVariable<int>(0);
     public NetworkVariable<int> Player2Score = new NetworkVariable<int>(0);
 
@@ -48,7 +54,6 @@ public class GameManager : NetworkBehaviour
         // have to ensure the server is running first before creating the board
         if (IsServer)
         {
-            CreateBoard();
             NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
         }
     }
@@ -69,7 +74,7 @@ public class GameManager : NetworkBehaviour
     }
 
     // create the board and center it in screen
-    private void CreateBoard()
+    public void CreateBoard()
     {
         int rows = 4;
         int columns = 4;
@@ -133,12 +138,17 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    // add edges when player request comes through
+    /**
+    SERVER RPC (Remote Procedure Call):
+    - server then changes NetworkVariables, which reflects on clients side
+    - prevents cheating - all game logic runs on the authoritative server
+    **/
     [ServerRpc(RequireOwnership = false)]
     public void RequestEdgePlacementServerRpc(int row, int col, bool isHorizontal, ulong clientId)
     {
         int player = CurrentPlayer.Value;
 
+        // Validate the requesting client is the current player
         if (!clientToPlayerMap.ContainsKey(clientId)) return;
 
         int requestingPlayer = clientToPlayerMap[clientId];
@@ -159,7 +169,7 @@ public class GameManager : NetworkBehaviour
         Edge e = FindEdge(row, col, isHorizontal);
         if (e != null)
         {
-            e.placedBy.Value = player; // change the edge to the respective player color
+            e.placedBy.Value = player;
         }
 
         // check for completed boxes
@@ -168,6 +178,7 @@ public class GameManager : NetworkBehaviour
         // switch turn only if no boxes completed (if box completed, player goes again)
         if (boxesCompleted == 0)
         {
+            // server updates CurrentPlayer, all clients' UI reflects this
             CurrentPlayer.Value = player == 1 ? 2 : 1;
         }
     }
@@ -208,7 +219,8 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    // update networked scores
+    // update NetworkVariable scores
+    // UIManager is subscribed to these variables and will update the UI when they change
     if (boxesCompleted > 0)
     {
         if (player == 1)

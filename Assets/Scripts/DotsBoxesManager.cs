@@ -4,8 +4,9 @@ using Unity.Netcode;
 
 /**
 DOTS BOXES MANAGER:
-used for starting the server
-UI for host button, client button, and server button based on tutorial
+- used for starting the server/client/host
+- UI for host button, client button, and server button based on tutorial
+- host must start before client joins
 **/
 
 public class DotsBoxesManager : MonoBehaviour
@@ -35,12 +36,15 @@ public class DotsBoxesManager : MonoBehaviour
     {
         if (NetworkManager.Singleton != null)
             NetworkManager.Singleton.StartHost();
+            GameManager.Instance.CreateBoard(); // start host and create board
     }
 
     void OnClientButtonClicked()
     {
         if (NetworkManager.Singleton != null)
+        {
             NetworkManager.Singleton.StartClient();
+        }
     }
 
     void OnServerButtonClicked()

@@ -4,8 +4,7 @@ using Unity.Netcode;
 
 /**
 UI MANAGER:
-updates the actual user interface for keeping track of whose turn it is
-and what the score is
+- updates the actual user interface for keeping track of whose turn/what the score is
 **/
 
 public class UIManager : NetworkBehaviour
@@ -22,12 +21,12 @@ public class UIManager : NetworkBehaviour
             return;
         }
 
-        // Subscribe to NetworkVariable changes
+        // keep track of changes to these variables/update when needed
         GameManager.Instance.CurrentPlayer.OnValueChanged += UpdateTurnUI;
         GameManager.Instance.Player1Score.OnValueChanged += UpdateScoresUI;
         GameManager.Instance.Player2Score.OnValueChanged += UpdateScoresUI;
 
-        // Initial UI update
+        // initial UI update
         UpdateTurnUI(0, GameManager.Instance.CurrentPlayer.Value);
         UpdateScoresUI(0, GameManager.Instance.Player1Score.Value);
         UpdateScoresUI(0, GameManager.Instance.Player2Score.Value);
