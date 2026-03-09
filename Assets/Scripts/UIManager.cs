@@ -2,6 +2,12 @@ using UnityEngine;
 using TMPro;
 using Unity.Netcode;
 
+/**
+UI MANAGER:
+updates the actual user interface for keeping track of whose turn it is
+and what the score is
+**/
+
 public class UIManager : NetworkBehaviour
 {
     public TextMeshProUGUI currentTurnText;
@@ -37,6 +43,7 @@ public class UIManager : NetworkBehaviour
         }
     }
 
+    // update whose turn it is
     private void UpdateTurnUI(int prev, int current)
     {
         if (currentTurnText == null) return;
@@ -46,6 +53,7 @@ public class UIManager : NetworkBehaviour
         // Debug.Log($"[UI] Turn updated: Player {current}");
     }
 
+    // update player score (player 1 and 2)
     private void UpdateScoresUI(int prev, int current)
     {
         if (player1ScoreText == null || player2ScoreText == null) return;

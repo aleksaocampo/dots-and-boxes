@@ -2,6 +2,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using Unity.Netcode;
 
+/**
+DOTS BOXES MANAGER:
+used for starting the server
+UI for host button, client button, and server button based on tutorial
+**/
+
 public class DotsBoxesManager : MonoBehaviour
 {
     [Header("UI References")]
@@ -45,7 +51,7 @@ public class DotsBoxesManager : MonoBehaviour
 
     void Update()
     {
-        // Optional: disable start buttons once connected
+        // disable start buttons once connected
         if (!buttonsDisabled && NetworkManager.Singleton != null && (NetworkManager.Singleton.IsClient || NetworkManager.Singleton.IsServer))
         {
             if (hostButton != null) hostButton.gameObject.SetActive(false);

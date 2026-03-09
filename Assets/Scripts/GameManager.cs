@@ -2,6 +2,13 @@ using UnityEngine;
 using Unity.Netcode;
 using System.Collections.Generic;
 
+/**
+GAME MANAGER:
+- creates the game board and centeres it in the screen
+- overall game logic (place an edge, keep track of who completed
+what boxes, updates score, etc.)
+**/
+
 public class GameManager : NetworkBehaviour
 {
     public static GameManager Instance;
@@ -26,10 +33,11 @@ public class GameManager : NetworkBehaviour
 
     public NetworkVariable<int> CurrentPlayer = new NetworkVariable<int>(1);
 
-    // --- Networked player scores ---
+    // player scores are networked
     public NetworkVariable<int> Player1Score = new NetworkVariable<int>(0);
     public NetworkVariable<int> Player2Score = new NetworkVariable<int>(0);
 
+    // used for finding edges in the board itself
     private Dictionary<ulong, int> clientToPlayerMap = new Dictionary<ulong, int>();
     private Dictionary<string, Edge> edgeCache = new Dictionary<string, Edge>();
 
@@ -37,6 +45,7 @@ public class GameManager : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        // have to ensure the server is running first before creating the board
         if (IsServer)
         {
             CreateBoard();
@@ -52,13 +61,14 @@ public class GameManager : NetworkBehaviour
         }
     }
 
+    // keep track of the number of players and assign player numbers
     private void OnClientConnected(ulong clientId)
     {
         int playerNumber = clientToPlayerMap.Count + 1;
         clientToPlayerMap[clientId] = playerNumber;
     }
 
-    // --- Create the full board ---
+    // create the board and center it in screen
     private void CreateBoard()
     {
         int rows = 4;
@@ -67,7 +77,7 @@ public class GameManager : NetworkBehaviour
         float offsetX = (columns - 1) * spacing / 2f;
         float offsetY = (rows - 1) * spacing / 2f;
 
-        // --- Dots ---
+        // create dots on board
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < columns; c++)
@@ -79,7 +89,7 @@ public class GameManager : NetworkBehaviour
             }
         }
 
-        // --- Horizontal Edges ---
+        // add horizontal edges on board
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < columns - 1; c++)
@@ -94,7 +104,7 @@ public class GameManager : NetworkBehaviour
             }
         }
 
-        // --- Vertical Edges ---
+        // add vertical edges on board
         for (int r = 0; r < rows - 1; r++)
         {
             for (int c = 0; c < columns; c++)
@@ -109,7 +119,7 @@ public class GameManager : NetworkBehaviour
             }
         }
 
-        // --- Boxes ---
+        // create boxes
         for (int r = 0; r < rows - 1; r++)
         {
             for (int c = 0; c < columns - 1; c++)
@@ -123,7 +133,7 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    // --- Handle client requests to place edges ---
+    // add edges when player request comes through
     [ServerRpc(RequireOwnership = false)]
     public void RequestEdgePlacementServerRpc(int row, int col, bool isHorizontal, ulong clientId)
     {
@@ -134,6 +144,7 @@ public class GameManager : NetworkBehaviour
         int requestingPlayer = clientToPlayerMap[clientId];
         if (requestingPlayer != player) return;
 
+        // check if edge is already taken and store who owns it
         if (isHorizontal)
         {
             if (horizontalEdges[row, col] != 0) return;
@@ -148,20 +159,20 @@ public class GameManager : NetworkBehaviour
         Edge e = FindEdge(row, col, isHorizontal);
         if (e != null)
         {
-            e.placedBy.Value = player;
+            e.placedBy.Value = player; // change the edge to the respective player color
         }
 
-        // Check for completed boxes
+        // check for completed boxes
         int boxesCompleted = CheckForCompletedBoxes(row, col, isHorizontal, player);
 
-        // Switch turn only if no boxes completed
+        // switch turn only if no boxes completed (if box completed, player goes again)
         if (boxesCompleted == 0)
         {
             CurrentPlayer.Value = player == 1 ? 2 : 1;
         }
     }
 
-    // --- Check completed boxes and increment scores ---
+    // score depends on who completes box, and update accordingly
     private int CheckForCompletedBoxes(int row, int col, bool isHorizontal, int player)
 {
     int boxesCompleted = 0;
@@ -197,7 +208,7 @@ public class GameManager : NetworkBehaviour
         }
     }
 
-    // Update networked scores
+    // update networked scores
     if (boxesCompleted > 0)
     {
         if (player == 1)
@@ -214,7 +225,7 @@ public class GameManager : NetworkBehaviour
 
     return boxesCompleted;
 }
-    // --- Returns true if a box is completed by a player ---
+    // will return true of a box is completed by a player
     private bool IsBoxComplete(int boxRow, int boxCol, int player)
     {
         if (horizontalEdges[boxRow, boxCol] != player) return false;
